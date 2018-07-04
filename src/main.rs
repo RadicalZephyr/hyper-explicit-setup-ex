@@ -40,16 +40,22 @@ impl fmt::Display for CantFail {
 fn create_serve_all<S>(handle: &Handle, addr: SocketAddr, new_service: S) -> impl Future<Item = (), Error = ()>
 where S: service::NewService<ReqBody=hyper::Body, ResBody=hyper::Body>,
       S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-      <S as service::NewService>::Future: 'static,
-      <S as service::NewService>::Service: service::Service,
-      <S as service::NewService>::InitError: std::fmt::Debug,
+      <S as service::NewService>::Future: 'static + fmt::Debug,
+      <S as service::NewService>::Service: 'static + service::Service,
+      <S as service::NewService>::InitError: 'static + fmt::Debug,
       <S::Service as service::Service>::Future: 'static + Send,
 {
     let serve = Http::new().serve_addr_handle(&addr, handle, new_service).unwrap();
 
-    let serve_all = serve.for_each(move |conn| {
+    let serve_all = serve.for_each(move |connecting| {
         trace!("spawning connection future onto the current thread");
-        current_thread::spawn(conn.map(|_| ()).map_err(|e| { error!("serve.for_each: {:?}", e); () }));
+        trace!("got a {:?}", connecting);
+        current_thread::spawn(connecting
+                              .map_err(|e| { error!("serve.for_each: {:?}", e); () })
+                              .and_then(|connection| {
+                                  connection.map_err(|_| ())
+                              })
+                              .map(|_| ()));
         Ok(())
     }).map_err(|e| { error!("serve_all: {:?}", e); () });
 
