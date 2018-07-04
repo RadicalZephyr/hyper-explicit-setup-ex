@@ -95,7 +95,7 @@ fn main() -> Result<(), ()> {
                     enter,
                     |enter|{
                         let mut entered = executor.enter(enter);
-                        let addr = "127.0.0.1:4000".parse().unwrap();
+                        let addr = "127.0.0.1:19324".parse().unwrap();
                         serve_http(&reactor_handle, &mut entered, addr);
                         entered.run().expect("exited main executor");
                     }
